@@ -1,18 +1,18 @@
 {
-  "name": "chadcommit",
-  "displayName": "chadCommit",
-  "description": "Generate git commit messages with a single click by using GPT-4o to analyze your staged changes.",
-  "version": "1.5.1",
+  "name": "gigachat-commit",
+  "displayName": "GigaChat commit",
+  "description": "Generate git commit messages with a single click by using GigaChat to analyze your staged changes.",
+  "version": "0.0.1",
   "activationEvents": [],
   "engines": {
     "vscode": "^1.76.0"
   },
   "author": {
-    "name": "1ncx"
+    "name": "Dmitry Korzunin"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/1ncx/chadcommit.git"
+    "url": "https://github.com/1ncx/gigachat-commit.git"
   },
   "publisher": "lennartlence",
   "pricing": "Free",
@@ -22,7 +22,7 @@
     "chatgpt",
     "commit",
     "openai",
-    "gpt-4o"
+    "gigachat"
   ],
   "categories": [
     "Other"
@@ -35,19 +35,19 @@
   "contributes": {
     "configuration": {
       "type": "object",
-      "title": "chadCommit",
+      "title": "gigachat-commit",
       "properties": {
-        "chadcommit.model": {
+        "gigachat-commit.model": {
           "type": "string",
-          "default": "gpt-4o",
-          "description": "Change OpenAI model used for text generation."
+          "default": "GigaChat",
+          "description": "Change GigaChat model used for text generation."
         },
-        "chadcommit.openAiKey": {
+        "gigachat-commit.authKey": {
           "type": "string",
           "default": "",
-          "description": "(Required) API key to access the OpenAI."
+          "description": "(Required) API key to access the GigaChat."
         },
-        "chadcommit.prompt": {
+        "gigachat-commit.prompt": {
           "type": "string",
           "default": "Analyze a git diff and make a short conventional commit message, follow this template: 🚀feat(scope) [message]\\n🛠️refactor(scope) [message]\\n⚙️chore(scope) [message]; Response example: 🚀feat(player) add captions\\n🛠️refactor(player) support new formats\\n⚙️chore(dependencies) upgrade terser to 5.16.6",
           "description": "Edit this to fit your preferred form of the commit message, change it as you want."
@@ -56,8 +56,8 @@
     },
     "commands": [
       {
-        "category": "chadCommit",
-        "command": "chadcommit.suggest",
+        "category": "gigachat-commit",
+        "command": "gigachat-commit.suggest",
         "title": "Suggest a commit message",
         "icon": {
           "light": "resources/cmd-icon-light.svg",
@@ -68,7 +68,7 @@
     "menus": {
       "scm/title": [
         {
-          "command": "chadcommit.suggest",
+          "command": "gigachat-commit.suggest",
           "group": "navigation",
           "when": "scmProvider == 'git'"
         }
@@ -87,6 +87,7 @@
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
+    "@types/uuid": "^10.0.0",
     "@types/vscode": "^1.76.0",
     "@typescript-eslint/eslint-plugin": "^5.53.0",
     "@typescript-eslint/parser": "^5.53.0",
@@ -96,5 +97,8 @@
     "mocha": "^10.2.0",
     "terser": "^5.16.6",
     "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "uuid": "^10.0.0"
   }
 }

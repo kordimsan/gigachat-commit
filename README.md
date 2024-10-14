@@ -1,6 +1,6 @@
-# chadCommit
+# GigaChat AI Commit
 
-Generate git commit messages with a single click by using GPT-4o to analyze your staged changes.
+Generate git commit messages with a single click by using GigaChat to analyze your staged changes.
 
 ## In action
 
@@ -8,7 +8,7 @@ Generate git commit messages with a single click by using GPT-4o to analyze your
 
 ## Customizing messages
 
-You can edit the GPT prompt in the extension settings to fit your preferred style of messages.
+You can edit the prompt in the extension settings to fit your preferred style of messages.
 
 ### Prompt example:
 
@@ -18,7 +18,7 @@ Analyze a git diff and make a short conventional commit message, follow this tem
 
 ## Requirements
 
-- You should obtain an OpenAI API key here:
-  https://platform.openai.com/account/api-keys
+- You should obtain an GigaChat auth key here:
+  https://developers.sber.ru/studio/workspaces/my-space/get/gigachat-api
 
 - It is recommended to keep your commits small. Unstage unrelated, large, and auto-generated files (such as package-lock) before clicking the "Suggest" button to avoid context length errors.

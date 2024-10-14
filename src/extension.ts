@@ -1,53 +1,114 @@
 import * as vscode from "vscode";
 import { request } from "https";
 import { TextDecoder } from "util";
+import { v4 as uuidv4 } from "uuid";
+
 
 export function activate(context: vscode.ExtensionContext) {
   let cancellationTokenSource: vscode.CancellationTokenSource | null = null;
 
-  let disposable = vscode.commands.registerCommand("chadcommit.suggest", async () => {
-    if (cancellationTokenSource) {
-      vscode.window.showInformationMessage("Thinking...", "Cancel").then((selectedItem) => {
-        if (selectedItem === "Cancel") {
-          cancellationTokenSource?.cancel();
-          cancellationTokenSource?.dispose();
-          cancellationTokenSource = null;
-        }
-      });
-      return;
-    } else {
-      cancellationTokenSource = new vscode.CancellationTokenSource();
+  let disposable = vscode.commands.registerCommand(
+    "gigachat-commit.suggest",
+    async () => {
+      if (cancellationTokenSource) {
+        vscode.window
+          .showInformationMessage("Thinking...", "Cancel")
+          .then((selectedItem) => {
+            if (selectedItem === "Cancel") {
+              cancellationTokenSource?.cancel();
+              cancellationTokenSource?.dispose();
+              cancellationTokenSource = null;
+            }
+          });
+        return;
+      } else {
+        cancellationTokenSource = new vscode.CancellationTokenSource();
+      }
+
+      await suggest(cancellationTokenSource.token);
+
+      cancellationTokenSource.dispose();
+      cancellationTokenSource = null;
     }
-
-    await suggest(cancellationTokenSource.token);
-
-    cancellationTokenSource.dispose();
-    cancellationTokenSource = null;
-  });
+  );
 
   context.subscriptions.push(disposable);
 }
 
 export function deactivate() {}
 
+// Функция для получения токена
+const getAuthToken = async (authKey: string) => {
+  return new Promise<string>((resolve, reject) => {
+    const options = {
+      method: "POST",
+      hostname: "ngw.devices.sberbank.ru",
+      port: 9443,
+      path: "/api/v2/oauth",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+        RqUID: uuidv4(),
+        Authorization: "Basic " + authKey
+      }
+    };
+
+    const req = request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          const token = JSON.parse(data).access_token;
+          resolve(token);
+        } else {
+          reject(`Failed to get token: ${res.statusCode} ${data}`);
+        }
+      });
+    });
+
+    req.on("error", (e) => {
+      reject(`Failed to get token: ${e.message}`);
+    });
+
+    const qs = require("querystring");
+
+    let postData = qs.stringify({
+      scope: "GIGACHAT_API_PERS"
+    });
+
+    req.write(postData);
+    req.end();
+  });
+};
+
+// Функция для генерации текста с использованием GigaChat API
 const suggest = async (cancelToken: vscode.CancellationToken) => {
   try {
-    const config = vscode.workspace.getConfiguration("chadcommit");
+    const config = vscode.workspace.getConfiguration("gigachat-commit");
 
-    const openAiKey: string | undefined = config.get("openAiKey");
+    const authKey: string | undefined = config.get("authKey");
     const prompt: string | undefined = config.get("prompt");
     const model: string | undefined = config.get("model");
 
-    if (!openAiKey) {
+    if (!authKey) {
       const action = "Go to Settings";
 
-      vscode.window.showInformationMessage("Set your OpenAI API key first!", action).then((selectedItem) => {
-        if (selectedItem === action) {
-          vscode.commands.executeCommand("workbench.action.openSettings", "chadcommit.openAiKey");
-        }
-      });
+      vscode.window
+        .showInformationMessage("Set your GigaChat API key first!", action)
+        .then((selectedItem) => {
+          if (selectedItem === action) {
+            vscode.commands.executeCommand(
+              "workbench.action.openSettings",
+              "gigachat-commit.authKey"
+            );
+          }
+        });
       return;
     }
+
+    const authToken = await getAuthToken(authKey);
 
     const gitExtension = vscode.extensions.getExtension("vscode.git");
 
@@ -68,7 +129,7 @@ const suggest = async (cancelToken: vscode.CancellationToken) => {
     const stagedChangesDiff = await currentRepo.diffIndexWith("HEAD");
 
     if (stagedChangesDiff.length === 0) {
-      vscode.window.showErrorMessage("There is no staged changes!");
+      vscode.window.showErrorMessage("There are no staged changes!");
       return;
     }
 
@@ -79,13 +140,17 @@ const suggest = async (cancelToken: vscode.CancellationToken) => {
     for (const change of stagedChangesDiff) {
       switch (change.status) {
         case 3:
-          renamed.push(`RENAMED: ${change.originalUri.path} to ${change.renameUri.path};`);
+          renamed.push(
+            `RENAMED: ${change.originalUri.path} to ${change.renameUri.path};`
+          );
           break;
         case 6:
           deleted.push(`DELETED: ${change.originalUri.path};`);
           break;
         default:
-          const fileDiff = await currentRepo.diffIndexWithHEAD(change.uri.fsPath);
+          const fileDiff = await currentRepo.diffIndexWithHEAD(
+            change.uri.fsPath
+          );
           parsed.push(fileDiff);
           break;
       }
@@ -96,58 +161,69 @@ const suggest = async (cancelToken: vscode.CancellationToken) => {
       return;
     }
 
-    if(!model) {
-      vscode.window.showErrorMessage("OpenAI model is not set!");
+    if (!model) {
+      vscode.window.showErrorMessage("GigaChat model is not set!");
       return;
     }
 
-    await turboCompletion({
+    await sendChatCompletion({
       opts: {
         messages: [
           {
             role: "user",
-            content: `"${prompt}"`,
+            content: `"${prompt}"`
           },
           {
             role: "user",
-            content: `${parsed.join("\n")}\n\n${deleted.join("\n")}\n\n${renamed.join("\n")}`,
-          },
+            content: `${parsed.join("\n")}\n\n${deleted.join(
+              "\n"
+            )}\n\n${renamed.join("\n")}`
+          }
         ],
         model,
         max_tokens: 256,
-        stream: true,
+        stream: false,
+        update_interval: 0
       },
-      apiKey: openAiKey,
+      authToken,
       onText: (text) => (currentRepo.inputBox.value = text),
-      cancelToken,
+      cancelToken
     });
   } catch (error: any) {
     vscode.window.showErrorMessage(error.toString());
   }
 };
 
-type TurboCompletion = (props: {
+type SendChatCompletion = (props: {
   opts: {
     messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
     model: string;
     max_tokens: number;
+    update_interval: number;
     stream: boolean;
   };
-  apiKey: string;
+  authToken: string;
   onText: (text: string) => void;
   cancelToken: vscode.CancellationToken;
 }) => Promise<void | string>;
 
-const turboCompletion: TurboCompletion = ({ opts, apiKey, onText, cancelToken }) => {
+// Функция для отправки запроса на /chat GigaChat API
+const sendChatCompletion: SendChatCompletion = ({
+  opts,
+  authToken,
+  onText,
+  cancelToken
+}) => {
   return new Promise((resolve, reject) => {
     const options = {
       method: "POST",
-      hostname: "api.openai.com",
-      path: "/v1/chat/completions",
+      hostname: "https://gigachat.devices.sberbank.ru",
+      path: "/api/v1/chat/completions",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-      },
+        Accept: "application/json",
+        Authorization: `Bearer ${authToken}`
+      }
     };
 
     const req = request(options, (res) => {
@@ -155,7 +231,12 @@ const turboCompletion: TurboCompletion = ({ opts, apiKey, onText, cancelToken })
 
       if (res.statusCode !== 200) {
         res.on("data", (chunk) => {
-          reject(`OpenAI: ${res.statusCode} - ${JSON.parse(decoder.decode(chunk) || "{}")?.error?.code || "unknown"}`);
+          reject(
+            `GigaChat: ${res.statusCode} - ${
+              JSON.parse(decoder.decode(chunk) || "{}")?.error?.message ||
+              "unknown"
+            }`
+          );
         });
         return;
       }
@@ -163,19 +244,9 @@ const turboCompletion: TurboCompletion = ({ opts, apiKey, onText, cancelToken })
       let fullText = "";
 
       res.on("data", (chunk) => {
-        const dataMatches = decoder.decode(chunk).matchAll(/data: ({.*})\n/g);
-
-        for (const match of dataMatches) {
-          const { content } = JSON.parse(match[1]).choices[0].delta;
-
-          if (!content) {
-            continue;
-          }
-
-          fullText += content;
-
-          onText(fullText);
-        }
+        const data = decoder.decode(chunk);
+        const { content } = JSON.parse(data).choices[0].message;
+        onText(content);
       });
 
       res.on("end", () => {
@@ -188,7 +259,6 @@ const turboCompletion: TurboCompletion = ({ opts, apiKey, onText, cancelToken })
     });
 
     req.write(JSON.stringify(opts));
-
     req.end();
 
     cancelToken.onCancellationRequested(() => {
