@@ -1,7 +1,5 @@
 import * as vscode from "vscode";
-import { request } from "https";
-import { TextDecoder } from "util";
-import { v4 as uuidv4 } from "uuid";
+import { GigaChat } from "gigachat-node";
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -37,53 +35,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
-// Функция для получения токена
-const getAuthToken = async (authKey: string) => {
-  return new Promise<string>((resolve, reject) => {
-    const options = {
-      method: "POST",
-      hostname: "ngw.devices.sberbank.ru",
-      port: 9443,
-      path: "/api/v2/oauth",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-        RqUID: uuidv4(),
-        Authorization: "Basic " + authKey
-      }
-    };
-
-    const req = request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-      res.on("end", () => {
-        if (res.statusCode === 200) {
-          const token = JSON.parse(data).access_token;
-          resolve(token);
-        } else {
-          reject(`Failed to get token: ${res.statusCode} ${data}`);
-        }
-      });
-    });
-
-    req.on("error", (e) => {
-      reject(`Failed to get token: ${e.message}`);
-    });
-
-    const qs = require("querystring");
-
-    let postData = qs.stringify({
-      scope: "GIGACHAT_API_PERS"
-    });
-
-    req.write(postData);
-    req.end();
-  });
-};
-
-// Функция для генерации текста с использованием GigaChat API
 const suggest = async (cancelToken: vscode.CancellationToken) => {
   try {
     const config = vscode.workspace.getConfiguration("gigachat-commit");
@@ -107,8 +58,6 @@ const suggest = async (cancelToken: vscode.CancellationToken) => {
         });
       return;
     }
-
-    const authToken = await getAuthToken(authKey);
 
     const gitExtension = vscode.extensions.getExtension("vscode.git");
 
@@ -166,8 +115,11 @@ const suggest = async (cancelToken: vscode.CancellationToken) => {
       return;
     }
 
-    await sendChatCompletion({
-      opts: {
+    const client = new GigaChat(authKey);
+    await client.createToken();
+    client
+      .completion({
+        model,
         messages: [
           {
             role: "user",
@@ -179,91 +131,12 @@ const suggest = async (cancelToken: vscode.CancellationToken) => {
               "\n"
             )}\n\n${renamed.join("\n")}`
           }
-        ],
-        model,
-        max_tokens: 256,
-        stream: false,
-        update_interval: 0
-      },
-      authToken,
-      onText: (text) => (currentRepo.inputBox.value = text),
-      cancelToken
-    });
+        ]
+      })
+      .then(response => {
+        currentRepo.inputBox.value = response.choices[0].message.content;
+      });
   } catch (error: any) {
     vscode.window.showErrorMessage(error.toString());
   }
-};
-
-type SendChatCompletion = (props: {
-  opts: {
-    messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
-    model: string;
-    max_tokens: number;
-    update_interval: number;
-    stream: boolean;
-  };
-  authToken: string;
-  onText: (text: string) => void;
-  cancelToken: vscode.CancellationToken;
-}) => Promise<void | string>;
-
-// Функция для отправки запроса на /chat GigaChat API
-const sendChatCompletion: SendChatCompletion = ({
-  opts,
-  authToken,
-  onText,
-  cancelToken
-}) => {
-  return new Promise((resolve, reject) => {
-    const options = {
-      method: "POST",
-      hostname: "https://gigachat.devices.sberbank.ru",
-      path: "/api/v1/chat/completions",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${authToken}`
-      }
-    };
-
-    const req = request(options, (res) => {
-      const decoder = new TextDecoder("utf8");
-
-      if (res.statusCode !== 200) {
-        res.on("data", (chunk) => {
-          reject(
-            `GigaChat: ${res.statusCode} - ${
-              JSON.parse(decoder.decode(chunk) || "{}")?.error?.message ||
-              "unknown"
-            }`
-          );
-        });
-        return;
-      }
-
-      let fullText = "";
-
-      res.on("data", (chunk) => {
-        const data = decoder.decode(chunk);
-        const { content } = JSON.parse(data).choices[0].message;
-        onText(content);
-      });
-
-      res.on("end", () => {
-        resolve(fullText);
-      });
-    });
-
-    req.on("error", (error) => {
-      reject(error);
-    });
-
-    req.write(JSON.stringify(opts));
-    req.end();
-
-    cancelToken.onCancellationRequested(() => {
-      req.destroy();
-      resolve();
-    });
-  });
 };

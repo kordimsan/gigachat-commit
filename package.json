@@ -14,7 +14,7 @@
     "type": "git",
     "url": "https://github.com/1ncx/gigachat-commit.git"
   },
-  "publisher": "lennartlence",
+  "publisher": "kordim",
   "pricing": "Free",
   "keywords": [
     "ai",
@@ -49,7 +49,7 @@
         },
         "gigachat-commit.prompt": {
           "type": "string",
-          "default": "Analyze a git diff and make a short conventional commit message, follow this template: 🚀feat(scope) [message]\\n🛠️refactor(scope) [message]\\n⚙️chore(scope) [message]; Response example: 🚀feat(player) add captions\\n🛠️refactor(player) support new formats\\n⚙️chore(dependencies) upgrade terser to 5.16.6",
+          "default": "Analyze a git diff and make a short conventional commit message, follow this template: <emoji> <type>(<scope>): <subject><BLANK LINE><body>; Examples:\\n🚀 feat(player) add captions,\\n🛠️ refactor(player) support new formats,\\n⚙️ chore(dependencies) upgrade",
           "description": "Edit this to fit your preferred form of the commit message, change it as you want."
         }
       }
@@ -99,6 +99,7 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
+    "gigachat-node": "^2.1.4",
     "uuid": "^10.0.0"
   }
 }
